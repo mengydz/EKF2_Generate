@@ -41,7 +41,6 @@ syms dax day daz real % IMU delta angle measurements in body axes - rad
 syms dvx dvy dvz real % IMU delta velocity measurements in body axes - m/sec
 syms q0 q1 q2 q3 real % quaternions defining attitude of body axes relative to local NED
 syms vn ve vd real % NED velocity - m/sec
-syms pn pe pd real % NED position - m
 syms dax_b day_b daz_b real % delta angle bias - rad
 syms dax_s day_s daz_s real % delta angle scale factor
 syms dvx_b dvy_b dvz_b real % delta velocity bias - m/sec
@@ -51,7 +50,6 @@ syms daxNoise dayNoise dazNoise dvxNoise dvyNoise dvzNoise real; % IMU delta ang
 syms magX magY magZ real; % XYZ body fixed magnetic field measurements - milligauss
 syms magN magE magD real; % NED earth fixed magnetic field components - milligauss
 syms R_VN R_VE R_VD real % variances for NED velocity measurements - (m/sec)^2
-syms R_PN R_PE R_PD real % variances for NED position measurements - m^2
 syms R_MAG real  % variance for magnetic flux measurements - milligauss^2
 syms R_YAW 'real' %variance for yaw(321) measurements(rad)
 syms rotErr1 rotErr2 rotErr3 real; % error rotation vector
@@ -86,7 +84,7 @@ Tbn = Quat2Tbn(truthQuat);
 dAngTruth = dAngMeas - dAngBias - [daxNoise;dayNoise;dazNoise];
 
 % Define the truth delta velocity
-dVelTruth = dVelMeas - dVelBias - [dvxNoise;dvyNoise;dvzNoise];
+dVelTruth = dVelMeas - [dvxNoise;dvyNoise;dvzNoise];
 
 % define the attitude update equations
 % use a first order expansion of rotation to calculate the quaternion increment
@@ -106,17 +104,13 @@ errRotNew = 2 * [errQuatNew(2);errQuatNew(3);errQuatNew(4)];
 % ignore coriolis terms for linearisation purposes
 vNew = [vn;ve;vd] + [0;0;gravity]*dt + Tbn*dVelTruth;
 
-% define the position update equations
-pNew = [pn;pe;pd] + [vn;ve;vd]*dt;
-
 % define the IMU bias error update equations
 dabNew = [dax_b; day_b; daz_b];
-dvbNew = dvz_b;
 % Define the state vector & number of states
-stateVector = [errRotVec;vn;ve;vd;pn;pe;pd;dAngBias;dvz_b];
+stateVector = [errRotVec;vn;ve;vd;dAngBias];
 nStates=numel(stateVector);
 
-% newStateVector = [errRotNew;vNew;pNew;dabNew;dvbNew];
+% newStateVector = [errRotNew;vNew;dabNew;dvbNew];
 %% derive the covariance prediction equation
 % This reduces the number of floating point operations by a factor of 6 or
 % more compared to using the standard matrix operations in code
@@ -128,7 +122,7 @@ nStates=numel(stateVector);
 distVector = [daxNoise;dayNoise;dazNoise;dvxNoise;dvyNoise;dvzNoise];
 
 % derive the control(disturbance) influence matrix
-G = jacobian([errRotNew;vNew;pNew;dabNew;dvbNew], distVector);
+G = jacobian([errRotNew;vNew;dabNew], distVector);
 G = subs(G, {'rotErr1', 'rotErr2', 'rotErr3'}, {0,0,0});
 % f = matlabFunction(G,'file','calcG.m');
 [G,SG]=OptimiseAlgebra(G,'SG');
@@ -143,7 +137,7 @@ Q = G*distMatrix*transpose(G);
 % derive the state transition matrix
 vNew = subs(vNew,{'daxNoise','dayNoise','dazNoise','dvxNoise','dvyNoise','dvzNoise'}, {0,0,0,0,0,0});
 errRotNew = subs(errRotNew,{'daxNoise','dayNoise','dazNoise','dvxNoise','dvyNoise','dvzNoise'}, {0,0,0,0,0,0});
-F = jacobian([errRotNew;vNew;pNew;dabNew;dvbNew], stateVector);
+F = jacobian([errRotNew;vNew;dabNew], stateVector);
 F = subs(F, {'rotErr1', 'rotErr2', 'rotErr3'}, {0,0,0});
 % f = matlabFunction(F,'file','calcF.m');
 [F,SF]=OptimiseAlgebra(F,'SF');
@@ -215,7 +209,7 @@ K_VE = (P*transpose(H_VEL(2,:)))/(H_VEL(2,:)*P*transpose(H_VEL(2,:)) + R_VE); % 
 
 K_VD = (P*transpose(H_VEL(3,:)))/(H_VEL(3,:)*P*transpose(H_VEL(3,:)) + R_VD); % Kalman gain vector
 
-save('PredictionEquations.mat');
+% save('PredictionEquations.mat');
 clear all;
 reset(symengine);
 %% Save output and convert to m and c code fragments

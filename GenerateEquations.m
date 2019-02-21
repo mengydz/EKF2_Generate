@@ -111,7 +111,7 @@ dvbNew = dvz_b;
 stateVector = [errRotVec;vn;ve;vd;dAngBias;dvz_b];
 nStates=numel(stateVector);
 
-newStateVector = [errRotNew;vNew;dabNew;dvbNew];
+% newStateVector = [errRotNew;vNew;dabNew;dvbNew];
 %% derive the covariance prediction equation
 % This reduces the number of floating point operations by a factor of 6 or
 % more compared to using the standard matrix operations in code
@@ -123,7 +123,7 @@ newStateVector = [errRotNew;vNew;dabNew;dvbNew];
 distVector = [daxNoise;dayNoise;dazNoise;dvxNoise;dvyNoise;dvzNoise];
 
 % derive the control(disturbance) influence matrix
-G = jacobian(newStateVector, distVector);
+G = jacobian([errRotNew;vNew;dabNew;dvbNew], distVector);
 G = subs(G, {'rotErr1', 'rotErr2', 'rotErr3'}, {0,0,0});
 % f = matlabFunction(G,'file','calcG.m');
 [G,SG]=OptimiseAlgebra(G,'SG');
@@ -138,7 +138,7 @@ Q = G*distMatrix*transpose(G);
 % derive the state transition matrix
 vNew = subs(vNew,{'daxNoise','dayNoise','dazNoise','dvxNoise','dvyNoise','dvzNoise'}, {0,0,0,0,0,0});
 errRotNew = subs(errRotNew,{'daxNoise','dayNoise','dazNoise','dvxNoise','dvyNoise','dvzNoise'}, {0,0,0,0,0,0});
-F = jacobian(newStateVector, stateVector);
+F = jacobian([errRotNew;vNew;dabNew;dvbNew], stateVector);
 F = subs(F, {'rotErr1', 'rotErr2', 'rotErr3'}, {0,0,0});
 % f = matlabFunction(F,'file','calcF.m');
 [F,SF]=OptimiseAlgebra(F,'SF');
